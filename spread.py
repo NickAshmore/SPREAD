@@ -2,20 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 
-st.title("SPREAD")
-st.subheader("Simulation for Predicting Run Efficiency of Agricultural Drones")
+# --- Mission Parameters ---
 
-
-# Heat map is an NxN array representing the field
-# Each element is a location on the field, and its value is the amount of deposited material
-N = 100
-field_width = 100.0 # meters
+field_width  = 100.0 # meters
 field_height = 100.0 # meters
-field = np.zeros((N, N))
 
-# Dummy deposition values
-field[20:50, 20:50] = 2.0
-field[40:80, 40:80] = 5.0
 
 line_spacing = st.sidebar.slider(
         "Flight Line Spacing (m)", 
@@ -24,11 +15,30 @@ line_spacing = st.sidebar.slider(
         value=8.0, 
         step=1.0
 )
+
+# --- Flight Path Generation ---
+
 flight_lines = np.arange(
-        line_spacing / 2, 
-        field_width, 
-        line_spacing
+        line_spacing / 2, # Starting x coord
+        field_width, # Final x coord
+        line_spacing # Spacing between each line
 )
+
+# -- Visualization ---
+
+st.title("SPREAD")
+st.subheader("Simulation for Predicting Run Efficiency of Agricultural Drones")
+
+
+# Heat map is an NxN array representing the field
+# Each element is a location on the field, and its value is the amount of deposited material
+
+N = 100
+field = np.zeros((N, N))
+
+# Dummy deposition values
+field[20:50, 20:50] = 2.0
+field[40:80, 40:80] = 5.0
 
 
 # Create heatmap
