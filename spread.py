@@ -93,9 +93,52 @@ st.subheader("Simulation for Predicting Run Efficiency of Agricultural Drones")
 N = 100
 field = np.zeros((N, N))
 
-# Dummy deposition values
-field[20:50, 20:50] = 2.0
-field[40:80, 40:80] = 5.0
+# START TODO Remove dummy data and replace with simulated deposition
+
+drift_factor = 1.5  # Illustrative meters of drift per m/s
+
+drift_x = wind_x * drift_factor
+drift_y = wind_y * drift_factor 
+
+
+# --- Gaussian Deposition Model ---
+
+N = 200
+field = np.zeros((N, N))
+
+x = np.linspace(0, field_width, N)
+y = np.linspace(0, field_height, N)
+X, Y = np.meshgrid(x, y)
+
+sigma = st.sidebar.slider(
+    "Deposition Spread (m)",
+    min_value=1.0,
+    max_value=15.0,
+    value=4.0,
+    step=0.5
+)
+
+amplitude = 1.0
+
+# Distance from each grid cell to the application region
+y_min = field_margin
+y_max = field_height - field_margin
+
+distance_y = np.maximum(
+    np.maximum(y_min - (Y - drift_y), (Y - drift_y) - y_max),
+    0
+)
+
+for x_line in flight_lines:
+
+    distance_x = X - (x_line + drift_x)
+    gaussian = amplitude * np.exp(
+        -(distance_x**2 + distance_y**2) / (2 * sigma**2)
+    )
+
+    field += gaussian
+
+# END TODO
 
 
 # Create heatmap
@@ -149,7 +192,11 @@ ax.text(
 )
 
 # Color legend
-fig.colorbar(heatmap, ax=ax, label="Deposition")
+fig.colorbar(
+    heatmap,
+    ax=ax,
+    label="Relative Deposition"
+)
 
 ax.set_title("Field Deposition Heatmap")
 ax.set_xlabel("X Position (m)")
