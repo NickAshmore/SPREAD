@@ -10,19 +10,54 @@ field_height = 100.0 # meters
 
 line_spacing = st.sidebar.slider(
         "Flight Line Spacing (m)", 
-        min_value=2.0, 
+        min_value=5.0, 
         max_value=20.0, 
         value=8.0, 
         step=1.0
 )
 
+
 # --- Flight Path Generation ---
+
+# field_margin = (line_spacing / 2) * 1.5 # Add space between drone and field boundary
+field_margin = (line_spacing / 2) + 5.0
+
 
 flight_lines = np.arange(
         line_spacing / 2, # Starting x coord
         field_width, # Final x coord
         line_spacing # Spacing between each line
 )
+
+path = []
+
+for i, x in enumerate(flight_lines):
+    if i % 2 == 0:
+        # Even: flying upward
+        path.append([x, field_margin])
+        path.append([x, field_height - field_margin])
+    else:
+        # Odd: flying downward
+        path.append([x, field_height - field_margin])
+        path.append([x, field_margin])
+    if i < len(flight_lines) - 1:
+        next_x = flight_lines[i + 1]
+        radius = (next_x - x) / 2
+        center_x = (x + next_x) / 2
+
+        if i % 2 == 0:
+            center_y = field_height - field_margin
+            theta = np.linspace(np.pi, 0, 30)
+        else:
+            center_y = field_margin
+            theta = np.linspace(np.pi, 2 * np.pi, 30)
+
+        for angle in theta:
+            turn_x = center_x + radius * np.cos(angle)
+            turn_y = center_y + radius * np.sin(angle)
+            path.append([turn_x, turn_y])
+
+trajectory = np.array(path)
 
 # -- Visualization ---
 
@@ -51,14 +86,13 @@ heatmap = ax.imshow(
 )
 
 # Overlay flight path
-for x in flight_lines:
-    ax.axvline(
-        x=x, 
-        color="white", 
-        linestyle="--", 
-        linewidth=1.5, 
-        alpha=0.8
-    )
+ax.plot(
+        trajectory[:, 0],
+        trajectory[:, 1],
+        color="white",
+        linewidth=2,
+        linestyle="-"
+)
 
 # Color legend
 fig.colorbar(heatmap, ax=ax, label="Deposition")
