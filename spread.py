@@ -16,6 +16,22 @@ line_spacing = st.sidebar.slider(
         step=1.0
 )
 
+wind_speed = st.sidebar.slider(
+    "Wind Speed (m/s)",
+    min_value=0.0,
+    max_value=15.0,
+    value=3.0,
+    step=0.5
+)
+
+wind_direction = st.sidebar.slider(
+    "Wind Direction (°)",
+    min_value=0,
+    max_value=359,
+    value=90,
+    step=5
+)
+
 
 # --- Flight Path Generation ---
 
@@ -59,6 +75,12 @@ for i, x in enumerate(flight_lines):
 
 trajectory = np.array(path)
 
+# --- Wind Vector ---
+
+wind_angle = np.radians(wind_direction)
+wind_x = wind_speed * np.cos(wind_angle)
+wind_y = wind_speed * np.sin(wind_angle)
+
 # -- Visualization ---
 
 st.title("SPREAD")
@@ -92,6 +114,38 @@ ax.plot(
         color="white",
         linewidth=2,
         linestyle="-"
+)
+
+# Overlay wind vector
+
+arrow_x = 85
+arrow_y = 15
+
+arrow_length = 15  # Visual length in meters
+
+if wind_speed > 0:
+    ax.arrow(
+        arrow_x,
+        arrow_y,
+        arrow_length * np.cos(wind_angle),
+        arrow_length * np.sin(wind_angle),
+        color="cyan",
+        width=0.6,
+        head_width=3,
+        head_length=4,
+        length_includes_head=True,
+        zorder=5
+    )
+
+# Wind speed label
+ax.text(
+    70,
+    10,
+    f"Wind: {wind_speed:.1f} m/s",
+    color="cyan",
+    fontsize=10,
+    fontweight="bold",
+    zorder=6
 )
 
 # Color legend
