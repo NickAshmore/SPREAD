@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 
+
 # --- Mission Parameters ---
 
 field_width  = 100.0 # meters
@@ -75,11 +76,88 @@ for i, x in enumerate(flight_lines):
 
 trajectory = np.array(path)
 
+# START TODO: Replace this placeholder with sim output
+# --- Mock Mission Timeline ---
+
+flight_speed = 5.0  # m/s, placeholder
+
+# Calculate distance between consecutive waypoints
+segments = np.diff(trajectory, axis=0)
+segment_lengths = np.linalg.norm(segments, axis=1)
+
+# Calculate cumulative distance
+cumulative_distance = np.concatenate((
+    [0],
+    np.cumsum(segment_lengths)
+))
+
+# Assume constant speed to calculate timestamps
+timestamps = cumulative_distance / flight_speed
+
+mission_duration = timestamps[-1]
+
+current_time = st.slider(
+    "Mission Progress (seconds)",
+    min_value=0.0,
+    max_value=float(mission_duration),
+    value=0.0,
+    step=1.0
+)
+drone_x = np.interp(
+    current_time,
+    timestamps,
+    trajectory[:, 0]
+)
+
+drone_y = np.interp(
+    current_time,
+    timestamps,
+    trajectory[:, 1]
+)
+# END TODO
+
+# START TODO
+# --- Deposition Playback ---
+
+dt = 0.5  # Seconds between simulation samples
+
+sample_times = np.arange(0, mission_duration + dt, dt)
+sample_times = np.clip(sample_times, 0, mission_duration)
+
+sample_x = np.interp(sample_times, timestamps, trajectory[:, 0])
+sample_y = np.interp(sample_times, timestamps, trajectory[:, 1])
+
+# Identify which samples belong to straight application passes.
+# During turns, the drone should not dispense.
+dispensing = np.zeros(len(sample_times), dtype=bool)
+
+for x_line in flight_lines:
+    dispensing |= (
+        (np.abs(sample_x - x_line) < 0.01)
+        & (sample_y >= field_margin)
+        & (sample_y <= field_height - field_margin)
+    )
+# END TODO
+
 # --- Wind Vector ---
 
 wind_angle = np.radians(wind_direction)
 wind_x = wind_speed * np.cos(wind_angle)
 wind_y = wind_speed * np.sin(wind_angle)
+
+# --- Mission Metrics ---
+# START TODO: Replace placeholder metrics with sim outputs
+
+metrics = {
+    "duration": 7.2,           # minutes
+    "energy_used": 185.0,      # Wh
+    "coverage": 92.4,          # %
+    "uniformity_cv": 18.6,     # %
+    "payload_remaining": 12.5  # kg
+}
+
+
+# END TODO
 
 # -- Visualization ---
 
@@ -90,7 +168,7 @@ st.subheader("Simulation for Predicting Run Efficiency of Agricultural Drones")
 # Heat map is an NxN array representing the field
 # Each element is a location on the field, and its value is the amount of deposited material
 
-N = 100
+N = 200
 field = np.zeros((N, N))
 
 # START TODO Remove dummy data and replace with simulated deposition
@@ -102,10 +180,6 @@ drift_y = wind_y * drift_factor
 
 
 # --- Gaussian Deposition Model ---
-
-N = 200
-field = np.zeros((N, N))
-
 x = np.linspace(0, field_width, N)
 y = np.linspace(0, field_height, N)
 X, Y = np.meshgrid(x, y)
@@ -119,25 +193,28 @@ sigma = st.sidebar.slider(
 )
 
 amplitude = 1.0
+field = np.zeros((N, N))
 
-# Distance from each grid cell to the application region
-y_min = field_margin
-y_max = field_height - field_margin
+for i in range(len(sample_times)):
 
-distance_y = np.maximum(
-    np.maximum(y_min - (Y - drift_y), (Y - drift_y) - y_max),
-    0
-)
+    if sample_times[i] > current_time:
+        break
 
-for x_line in flight_lines:
+    if not dispensing[i]:
+        continue
 
-    distance_x = X - (x_line + drift_x)
+    # Wind shifts the center of each deposition footprint
+    center_x = sample_x[i] + drift_x
+    center_y = sample_y[i] + drift_y
+
     gaussian = amplitude * np.exp(
-        -(distance_x**2 + distance_y**2) / (2 * sigma**2)
+        -(
+            (X - center_x)**2 +
+            (Y - center_y)**2
+        ) / (2 * sigma**2)
     )
 
-    field += gaussian
-
+    field += gaussian * dt
 # END TODO
 
 
@@ -147,7 +224,9 @@ heatmap = ax.imshow(
         field, 
         cmap="viridis", # maps low values to purple, high values to yellow 
         origin="lower", # places row 0 at the bottom of the field
-        extent=[0, field_width, 0, field_height]
+        extent=[0, field_width, 0, field_height],
+        vmin=0, # Ensure colors have same meaning throughout playback
+        vmax=field.max() # ^
 )
 
 # Overlay flight path
@@ -159,8 +238,39 @@ ax.plot(
         linestyle="-"
 )
 
-# Overlay wind vector
+# Completed flight path START TODO
+completed_x = trajectory[timestamps <= current_time, 0]
+completed_y = trajectory[timestamps <= current_time, 1]
 
+# Include the drone's interpolated current position
+completed_x = np.append(completed_x, drone_x)
+completed_y = np.append(completed_y, drone_y)
+
+ax.plot(
+    completed_x,
+    completed_y,
+    color="cyan",
+    linewidth=3,
+    zorder=8
+)
+# END TODO
+
+# Overlay drone position
+ax.scatter(
+    drone_x,
+    drone_y,
+    color="red",
+    s=120,
+    marker="o",
+    edgecolors="white",
+    linewidths=2,
+    zorder=10,
+    label="Drone"
+)
+
+ax.legend(loc="upper right")
+
+# Overlay wind vector
 arrow_x = 85
 arrow_y = 15
 
@@ -202,6 +312,42 @@ ax.set_title("Field Deposition Heatmap")
 ax.set_xlabel("X Position (m)")
 ax.set_ylabel("Y Position (m)")
 
-# Display in Streamlit
-st.pyplot(fig)
+
+# --- Dashboard Layout ---
+# START TODO: Clean up dashboard
+metrics["duration"] = mission_duration / 60
+map_col, metrics_col = st.columns([3, 1], gap="large")
+
+with map_col:
+    st.pyplot(fig, width="stretch")
+
+with metrics_col:
+    st.subheader("Mission Metrics (Placeholders)")
+
+    st.metric(
+        "Flight Duration",
+        f"{metrics['duration']:.1f} min"
+    )
+
+    st.metric(
+        "Energy Consumed",
+        f"{metrics['energy_used']:.0f} Wh"
+    )
+
+    st.metric(
+        "Field Coverage",
+        f"{metrics['coverage']:.1f}%"
+    )
+
+    st.metric(
+        "Deposition CV",
+        f"{metrics['uniformity_cv']:.1f}%"
+    )
+
+    st.metric(
+        "Payload Remaining",
+        f"{metrics['payload_remaining']:.1f} kg"
+    )
+
 plt.close(fig)
+# END TODO
