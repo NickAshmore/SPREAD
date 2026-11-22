@@ -1,7 +1,42 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
+from dataclasses import dataclass, field
 
+# --- Class and Object Definitions ---
+
+# define simulation configuration
+@dataclass
+class SimConfig:
+    dt: float = 0.01 # s
+    
+# define flight software configuraton
+@dataclass
+class FSWConfig:
+    kp: float = 1.0
+    kd: float = 0.5
+    ki: float = 0.01
+
+# define drone configuration
+@dataclass
+class DroneConfig:
+    dry_m: float    = 56 # kg
+    pay_m: float    = 80 # kg
+    dep_rate: float = 5  # kg/s
+    fsw: FSWConfig  = field(default_factory=FSWConfig)
+
+
+# define drone object
+class Drone:
+    def __init__(self, config: DroneConfig, x0: float, y0: float):
+        # Store the configuration
+        self.config = config
+        
+        # Initialize dynamic state variables
+        self.x = x0
+        self.y = y0
+        self.vx = 0.0
+        self.vy = 0.0
 
 # --- Mission Parameters ---
 
@@ -79,6 +114,9 @@ trajectory = np.array(path)
 # START TODO: Replace this placeholder with sim output
 # --- Mock Mission Timeline ---
 
+# spawn drone at first trajectory waypoint using default DroneConfig
+drone = Drone(DroneConfig, trajectory[0,0], trajectory[0,1])
+
 flight_speed = 5.0  # m/s, placeholder
 
 # Calculate distance between consecutive waypoints
@@ -119,7 +157,7 @@ drone_y = np.interp(
 # START TODO
 # --- Deposition Playback ---
 
-dt = 0.5  # Seconds between simulation samples
+dt = SimConfig.dt  # Seconds between simulation samples
 
 sample_times = np.arange(0, mission_duration + dt, dt)
 sample_times = np.clip(sample_times, 0, mission_duration)
