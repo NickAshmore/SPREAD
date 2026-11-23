@@ -66,8 +66,8 @@ def main():
     try:
         with map_col:
             st.pyplot(fig, width="stretch")
-        with metrics_col:
-            display_metrics(mission)
+        #with metrics_col:
+            #display_metrics(mission)
     finally:
         plt.close(fig)
 
