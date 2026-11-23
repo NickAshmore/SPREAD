@@ -1,20 +1,20 @@
 import numpy as np
-from spread import SimConfig, DroneConfig
+from configure import SimConfig, Drone
 
 # Translation PID controller that takes in current position, velocity, and trajectory waypoint and outputs thrust command.
 
-def trans_pid(sim_config: SimConfig, drone: DroneConfig, x, wp):
+def trans_pid(sim_config: SimConfig, drone: Drone, wp: np.ndarray):
     # Calculate state errors
-    err = wp - x
-    err_dot = -x; # Assuming static waypoint, derivative of error is -velocity
-    err_integral = err_integral + err * sim_config.dt
+    err = wp - drone.x[:2]
+    err_dot = -drone.x[2:4]; # Assuming static waypoint, derivative of error is -velocity
+    integral_err = drone.fsw.integral_err + err * sim_config.dt
     
     # Calculate commanded force
-    u = drone.Kp * err + drone.Ki * err_integral + drone.Kd * err_dot
+    u = drone.config.fsw.kp * err + drone.config.fsw.ki * integral_err + drone.config.fsw.kd * err_dot
     
     # Saturate control output (Actuator limits)
     force_mag = np.linalg.norm(u)
-    if force_mag > drone.max_force:
-        u = u * (drone.max_force / force_mag)
+    if force_mag > drone.config.max_force:
+        u = u * (drone.config.max_force / force_mag)
     
-    return u
+    return u, integral_err

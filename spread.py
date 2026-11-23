@@ -1,42 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
-from dataclasses import dataclass, field
-
-# --- Class and Object Definitions ---
-
-# define simulation configuration
-@dataclass
-class SimConfig:
-    dt: float = 0.01 # s
-    
-# define flight software configuraton
-@dataclass
-class FSWConfig:
-    kp: float = 1.0
-    kd: float = 0.5
-    ki: float = 0.01
-
-# define drone configuration
-@dataclass
-class DroneConfig:
-    dry_m: float    = 56 # kg
-    pay_m: float    = 80 # kg
-    dep_rate: float = 5  # kg/s
-    fsw: FSWConfig  = field(default_factory=FSWConfig)
-
-
-# define drone object
-class Drone:
-    def __init__(self, config: DroneConfig, x0: float, y0: float):
-        # Store the configuration
-        self.config = config
-        
-        # Initialize dynamic state variables
-        self.x = x0
-        self.y = y0
-        self.vx = 0.0
-        self.vy = 0.0
+from configure import SimConfig
+from dataclasses import field
+from run_sim import run_sim
 
 # --- Mission Parameters ---
 
@@ -71,6 +38,7 @@ wind_direction = st.sidebar.slider(
 
 # --- Flight Path Generation ---
 
+# START TODO Add waypoints on straightaways for flight controller
 # field_margin = (line_spacing / 2) * 1.5 # Add space between drone and field boundary
 field_margin = (line_spacing / 2) + 5.0
 
@@ -110,14 +78,11 @@ for i, x in enumerate(flight_lines):
             path.append([turn_x, turn_y])
 
 trajectory = np.array(path)
+# END TODO
 
-# START TODO: Replace this placeholder with sim output
-# --- Mock Mission Timeline ---
+# --- Run Simulation ---
 
-# spawn drone at first trajectory waypoint using default DroneConfig
-drone = Drone(DroneConfig, trajectory[0,0], trajectory[0,1])
-
-flight_speed = 5.0  # m/s, placeholder
+timestamps, positions, velocities, mass = run_sim(trajectory)
 
 # Calculate distance between consecutive waypoints
 segments = np.diff(trajectory, axis=0)
@@ -129,9 +94,6 @@ cumulative_distance = np.concatenate((
     np.cumsum(segment_lengths)
 ))
 
-# Assume constant speed to calculate timestamps
-timestamps = cumulative_distance / flight_speed
-
 mission_duration = timestamps[-1]
 
 current_time = st.slider(
@@ -139,20 +101,19 @@ current_time = st.slider(
     min_value=0.0,
     max_value=float(mission_duration),
     value=0.0,
-    step=1.0
+    step=0.1
 )
 drone_x = np.interp(
     current_time,
     timestamps,
-    trajectory[:, 0]
+    positions[:, 0]
 )
 
 drone_y = np.interp(
     current_time,
     timestamps,
-    trajectory[:, 1]
+    positions[:, 1]
 )
-# END TODO
 
 # START TODO
 # --- Deposition Playback ---
@@ -162,8 +123,8 @@ dt = SimConfig.dt  # Seconds between simulation samples
 sample_times = np.arange(0, mission_duration + dt, dt)
 sample_times = np.clip(sample_times, 0, mission_duration)
 
-sample_x = np.interp(sample_times, timestamps, trajectory[:, 0])
-sample_y = np.interp(sample_times, timestamps, trajectory[:, 1])
+sample_x = np.interp(sample_times, timestamps, positions[:, 0])
+sample_y = np.interp(sample_times, timestamps, positions[:, 1])
 
 # Identify which samples belong to straight application passes.
 # During turns, the drone should not dispense.
@@ -277,8 +238,8 @@ ax.plot(
 )
 
 # Completed flight path START TODO
-completed_x = trajectory[timestamps <= current_time, 0]
-completed_y = trajectory[timestamps <= current_time, 1]
+completed_x = positions[timestamps <= current_time, 0]
+completed_y = positions[timestamps <= current_time, 1]
 
 # Include the drone's interpolated current position
 completed_x = np.append(completed_x, drone_x)
